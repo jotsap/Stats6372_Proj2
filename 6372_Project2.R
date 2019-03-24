@@ -1,3 +1,10 @@
+# Include Libraries
+library(tidyverse)
+library(caret)
+library(ggcorrplot)
+library(kernlab)
+library(ggplot2)
+
 bc<-read.table("https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data",header=F,sep=",")
 names(bc)<- c('id_number', 'diagnosis', 'radius_mean', 
               'texture_mean', 'perimeter_mean', 'area_mean', 
@@ -14,8 +21,44 @@ names(bc)<- c('id_number', 'diagnosis', 'radius_mean',
               'concavity_worst', 'concave_points_worst', 
               'symmetry_worst', 'fractal_dimension_worst')
 
+# Data Summary
+summary(bc)
+
+# Normalize Data
+bc.clean <- bc[,-c(1)]
+normalize <- function(x){
+  return (( x - min(x))/(max(x) -min(x)))
+}  
+bc.clean.normalized <- as.data.frame(
+  lapply(bc.clean[,2:31],normalize)
+)  
+bc.clean.normalized <- cbind(
+  bc.clean[,1],
+  bc.clean.normalized
+)
+names(bc.clean.normalized)[1] <- "diagnosis"
+
+summary(bc.clean.normalized)
+
 #Getting a look at the distribution
 table(bc$diagnosis)
+
+# Malignant and Benign Distribution
+m_and_b <- bc.clean %>% 
+  group_by(diagnosis) %>%
+  summarise(n = n()) %>%
+  mutate(percentage = signif((100 * n/sum(n)),2))
+
+ggplot(data = m_and_b) +
+  geom_bar(
+    mapping = aes(x = "",y = percentage, fill = diagnosis), 
+    stat = "identity", 
+    width = 1) +
+  geom_text(
+    mapping = aes(x = c(1,1), y = c(69,18), 
+                  label = paste(percentage,"%")), 
+    size = 3) +
+  coord_polar("y")
 
 #Scatter plots color coded by response for just the first few variables
 pairs(bc[,3:6],col=bc$diagnosis)
