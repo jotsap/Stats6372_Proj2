@@ -1,0 +1,75 @@
+---
+title: "DS 6372: Applied Statistics - Project 2"
+authors: 
+- Arnold Zhang <arnoldz@smu.edu>
+- Jeremy O. <jotsap@smu.edu>
+- Tej Tenmattam <ttenmattam@smu.edu>
+date: "03/23/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+The following data set is a breast cancer data set that has numerous measurements taken from tumor biopsies.  The goal of using this data set is to predict using the metrics alone if the biopsy is cancer or not.  When continuous variables are available it is often helpful to create a pairs plot of data color coded by the response status (Diagnostis).  The first variable is an id number and is not needed.
+
+```{r}
+bc<-read.table("https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data",header=F,sep=",")
+names(bc)<- c('id_number', 'diagnosis', 'radius_mean', 
+              'texture_mean', 'perimeter_mean', 'area_mean', 
+              'smoothness_mean', 'compactness_mean', 
+              'concavity_mean','concave_points_mean', 
+              'symmetry_mean', 'fractal_dimension_mean',
+              'radius_se', 'texture_se', 'perimeter_se', 
+              'area_se', 'smoothness_se', 'compactness_se', 
+              'concavity_se', 'concave_points_se', 
+              'symmetry_se', 'fractal_dimension_se', 
+              'radius_worst', 'texture_worst', 
+              'perimeter_worst', 'area_worst', 
+              'smoothness_worst', 'compactness_worst', 
+              'concavity_worst', 'concave_points_worst', 
+              'symmetry_worst', 'fractal_dimension_worst')
+
+#Getting a look at the distribution
+table(bc$diagnosis)
+
+#Scatter plots color coded by response for just the first few variables
+pairs(bc[,3:6],col=bc$diagnosis)
+```
+
+So we can see from this pairs plot of just the first few variables,  seperation between the cancer and non cancer groups are pretty well seperated. Unfortunately we may not always see clear seperations but that does not necesarily mean that something like LDA or some other predcictive tool won't work.  It could be due to the fact we cant see the seperation of the groups unless we can actually see in higher dimensions.  One way to still get at this, is to conduct a PCA analysis and provide a some scatterplots for the first few PC's.  If seperation exists in the PC's, then a predictive model will probably do well.  
+
+Below we will conduct PCA on all of the predictors and plot the first few PC's against each other and look for speration.  The number of PCs to explore can be dictated by the scree plot.
+
+```{r}
+pc.bc<-prcomp(bc[,-c(1,2)],scale.=TRUE)
+pc.bc.scores<-pc.bc$x
+
+#Adding the response column to the PC's data frame
+pc.bc.scores<-data.frame(pc.bc.scores)
+pc.bc.scores$Diagnosis<-bc$diagnosis
+
+#Use ggplot2 to plot the first few pc's
+library(ggplot2)
+ggplot(data = pc.bc.scores, aes(x = PC1, y = PC2)) +
+  geom_point(aes(col=Diagnosis), size=1)+
+  ggtitle("PCA of Breast Cancer Tumor Biopsies")
+
+ggplot(data = pc.bc.scores, aes(x = PC2, y = PC3)) +
+  geom_point(aes(col=Diagnosis), size=1)+
+  ggtitle("PCA of Breast Cancer Tumor Biopsies")
+```
+
+So we can see in the first graphic a clear seperation exists for the two cancer groups.  So the PCA is telling us in effect what we already know from looking at the original variables.  The power of this approach is that you only need to look at 2-4 graphs each time, versus potentially having to examine massive scatterplot matrices to see if anything is there or not!
+
+Given what we see in the PCA analysis, its not too suprising that an LDA will probably do a good job here in predicting the categorical responses.  Perform an LDA on the original set of variables and calculate a confusion matrix.  Note: For this problem you do not have to do a training and test set split, lets recognize that the prediction performance that we obtain is protentially biased too low due to overfitting.  The main point here is that the accuracy is pretty good as expected via the PCA look.
+
+```{r}
+library(MASS)
+# Perform LDA on diagnosis
+mylda <- lda(Diagnosis ~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, data = pc.bc.scores)
+
+#confusion matrix
+prd<-predict(mylda, newdata = pc.bc.scores)$class
+table(prd,pc.bc.scores$Diagnosis)
+```
