@@ -61,7 +61,8 @@ ggplot(data = m_and_b) +
   coord_polar("y")
 
 #Scatter plots color coded by response for just the first few variables
-pairs(bc[,3:6],col=bc$diagnosis)
+#NOTE: updating this to include features 3 - 11. Strong correlation with Area, Perimeter, Radius
+pairs(bc[,3:11],col=bc$diagnosis)
 
 #Conduct PCA
 pc.bc<-prcomp(bc[,-c(1,2)],scale.=TRUE)
