@@ -82,6 +82,36 @@ ggplot(data = m_and_b) +
 pairs(bc[,3:6],col=bc$diagnosis)
 ```
 
+```{r}
+# ADDING BOX PLOT VISUALS
+
+#Box Plot: Perimeter Mean
+boxplot(perimeter_mean ~ diagnosis,data=wdbc,
+horizontal=TRUE,
+names=c("Benign","Malignant"),
+col=c("green","red"),
+xlab="Perimeter Mean",
+main="Wisconsin Breast Cancer")
+
+#Box Plot: Area Mean
+boxplot(area_mean ~ diagnosis,data=wdbc,
+horizontal=TRUE,
+names=c("Benign","Malignant"),
+col=c("green","red"),
+xlab="Area Mean",
+main="Wisconsin Breast Cancer")
+
+#Box Plot: Radius Mean
+boxplot(radius_mean ~ diagnosis,data=wdbc,
+horizontal=TRUE,
+names=c("Benign","Malignant"),
+col=c("green","red"),
+xlab="Radius Mean",
+main="Wisconsin Breast Cancer")
+
+```
+
+
 So we can see from this pairs plot of just the first few variables,  seperation between the cancer and non cancer groups are pretty well seperated. Unfortunately we may not always see clear seperations but that does not necesarily mean that something like LDA or some other predcictive tool won't work.  It could be due to the fact we cant see the seperation of the groups unless we can actually see in higher dimensions.  One way to still get at this, is to conduct a PCA analysis and provide a some scatterplots for the first few PC's.  If seperation exists in the PC's, then a predictive model will probably do well.  
 
 Below we will conduct PCA on all of the predictors and plot the first few PC's against each other and look for speration.  The number of PCs to explore can be dictated by the scree plot.
