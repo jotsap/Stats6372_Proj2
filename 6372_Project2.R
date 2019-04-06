@@ -40,6 +40,22 @@ names(bc.clean.normalized)[1] <- "diagnosis"
 
 summary(bc.clean.normalized)
 
+## Highly Correlated Features
+#Highly correlated features sometime shows feature duplication. Dropping those feature would not affect end result.For this analysis I am using correlation cutoff 0.85. If any correlation is higher than cutoff then I will simply drop that feature(s) from analysis.
+#```{r}
+correlationMatrix <- cor(bc.clean.normalized[,2:31])
+print(correlationMatrix)
+highlyCorrelated <- findCorrelation(correlationMatrix,cutoff = 0.85)
+print(highlyCorrelated)
+names(bc.clean.normalized[,2:31])
+post.cor.test.cancer <- cbind(
+  bc.clean.normalized[,2:31][,-c(highlyCorrelated)],
+  bc.clean.normalized[,1]
+)
+names(post.cor.test.cancer)[18] <-  "diagnosis"
+
+names(bc.clean.normalized[,2:31])[c(highlyCorrelated)]
+
 #Getting a look at the distribution
 table(bc$diagnosis)
 
@@ -64,13 +80,16 @@ ggplot(data = m_and_b) +
 #NOTE: updating this to include features 3 - 11. Strong correlation with Area, Perimeter, Radius
 pairs(bc[,3:11],col=bc$diagnosis)
 
+#Seeing has how a lot of the attributes are strongly correlated, we will use PCA to convert attributes into a set of uncorrelated components.
+
 #Conduct PCA
-pc.bc<-prcomp(bc[,-c(1,2)],scale.=TRUE)
+pc.bc<-prcomp(bc.clean.normalized[,-c(1)],scale.=TRUE)
 pc.bc.scores<-pc.bc$x
 
 #Adding the response column to the PC's data frame
 pc.bc.scores<-data.frame(pc.bc.scores)
 pc.bc.scores$Diagnosis<-bc$diagnosis
+
 
 #Use ggplot2 to plot the first few pc's
 library(ggplot2)
@@ -81,3 +100,58 @@ ggplot(data = pc.bc.scores, aes(x = PC1, y = PC2)) +
 ggplot(data = pc.bc.scores, aes(x = PC2, y = PC3)) +
   geom_point(aes(col=Diagnosis), size=1)+
   ggtitle("PCA of Breast Cancer Tumor Biopsies")
+
+summary(pc.bc)
+fviz_eig(pc.bc, addlabels = TRUE, ylim = c(0,100), barfill = "steelblue1", line="navy") + 
+  theme_classic() +
+  labs(x = "Principal Components", y = "% of Explained Variance", title = "WDBC - Principal Components")
+
+# We see that 44.3% of the variance is explained by the first principal component.
+
+## Model Creation
+
+# Models will be created using 5-fold cross-validation, given the relatively small sample size of the dataset. Setting parameters below:
+  
+# Setting up 5-fold cross-validation
+ctrl <- trainControl(method = "cv",
+                     number = 5)
+
+# Function for plotting confusion matrices
+cm_plot <- function(ml, title) {
+  confusionMatrix(ml)$table %>%
+    round(1) %>%
+    fourfoldplot(
+      color = c("#CC6666", "#99CC99"),
+      main=title, 
+      conf.level=0, 
+      margin=1
+    )
+}
+
+### Logistic Regression
+
+#Conduct PCA
+pca_wdbc <- princomp(bc.clean.normalized[,-c(1)]) # PCA on attributes
+pc_wdbc <- pca_wdbc$scores # PCA scores
+pc_wdbc_c <- bc$diagnosis # WDBC class attribute
+full_wdbc <- data.frame(pc_wdbc,pc_wdbc_c) # Combining PC with class attribute
+
+summary(pca_wdbc)
+fviz_eig(pca_wdbc, addlabels = TRUE, ylim = c(0,100), barfill = "steelblue1", line="navy") + 
+  theme_classic() +
+  labs(x = "Principal Components", y = "% of Explained Variance", title = "WDBC - Principal Components")
+
+# We see that 44.3% of the variance is explained by the first principal component.
+
+logit.ml <- train(pc_wdbc_c~., full_wdbc, method = "glm", family = "binomial", trControl =ctrl)
+logit.cm <- confusionMatrix(logit.ml)
+cm_plot(logit.ml, "Logistic Regression")
+logit.metrics <- data.frame (
+  "Model" = "Logistic Regression",
+  "Accuracy" = (logit.cm$table[1,1] + logit.cm$table[2,2])/100,
+  "Recall" = logit.cm$table[2,2] / (logit.cm$table[2,2] + logit.cm$table[1,2]),
+  "Precision" = logit.cm$table[2,2] / (logit.cm$table[2,1] + logit.cm$table[2,2]),
+  "FNR" = (logit.cm$table[1,2] / (logit.cm$table[2,2] + logit.cm$table[1,2])),
+  "Fscore" = (2 * logit.cm$table[2,2]) / (2 * logit.cm$table[2,2] + logit.cm$table[1,2] + logit.cm$table[2,1])
+)
+logit.metrics

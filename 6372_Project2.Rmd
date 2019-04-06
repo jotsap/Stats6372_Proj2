@@ -86,28 +86,28 @@ pairs(bc[,3:6],col=bc$diagnosis)
 # ADDING BOX PLOT VISUALS
 
 #Box Plot: Perimeter Mean
-boxplot(perimeter_mean ~ diagnosis,data=wdbc,
-horizontal=TRUE,
-names=c("Benign","Malignant"),
-col=c("green","red"),
-xlab="Perimeter Mean",
-main="Wisconsin Breast Cancer")
-
-#Box Plot: Area Mean
-boxplot(area_mean ~ diagnosis,data=wdbc,
-horizontal=TRUE,
-names=c("Benign","Malignant"),
-col=c("green","red"),
-xlab="Area Mean",
-main="Wisconsin Breast Cancer")
-
-#Box Plot: Radius Mean
-boxplot(radius_mean ~ diagnosis,data=wdbc,
-horizontal=TRUE,
-names=c("Benign","Malignant"),
-col=c("green","red"),
-xlab="Radius Mean",
-main="Wisconsin Breast Cancer")
+# boxplot(perimeter_mean ~ diagnosis,data=wdbc,
+# horizontal=TRUE,
+# names=c("Benign","Malignant"),
+# col=c("green","red"),
+# xlab="Perimeter Mean",
+# main="Wisconsin Breast Cancer")
+# 
+# #Box Plot: Area Mean
+# boxplot(area_mean ~ diagnosis,data=wdbc,
+# horizontal=TRUE,
+# names=c("Benign","Malignant"),
+# col=c("green","red"),
+# xlab="Area Mean",
+# main="Wisconsin Breast Cancer")
+# 
+# #Box Plot: Radius Mean
+# boxplot(radius_mean ~ diagnosis,data=wdbc,
+# horizontal=TRUE,
+# names=c("Benign","Malignant"),
+# col=c("green","red"),
+# xlab="Radius Mean",
+# main="Wisconsin Breast Cancer")
 
 ```
 
@@ -148,3 +148,80 @@ mylda <- lda(Diagnosis ~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, data = pc.bc.scores)
 prd<-predict(mylda, newdata = pc.bc.scores)$class
 table(prd,pc.bc.scores$Diagnosis)
 ```
+Seeing how a lot of the attributes are strongly correlated, we will use PCA to convert attributes into a set of uncorrelated components.
+
+Conduct PCA
+
+```{r}
+pca_wdbc <- princomp(bc.clean.normalized[,-c(1)]) # PCA on attributes
+pc_wdbc <- pca_wdbc$scores # PCA scores
+pc_wdbc_c <- bc$diagnosis # WDBC class attribute
+```
+Adding the response column to the PC's data frame
+```{r}
+full_wdbc <- data.frame(pc_wdbc,pc_wdbc_c) # Combining PC with class attribute
+```
+Use ggplot2 to plot the first few pc's
+```{r}
+library(ggplot2)
+ggplot(data = full_wdbc, aes(x = Comp.1, y = Comp.2)) +
+  geom_point(aes(col=pc_wdbc_c), size=1)+
+  ggtitle("PCA of Breast Cancer Tumor Biopsies")
+
+ggplot(data = full_wdbc, aes(x = Comp.2, y = Comp.3)) +
+  geom_point(aes(col=pc_wdbc_c), size=1)+
+  ggtitle("PCA of Breast Cancer Tumor Biopsies")
+
+summary(pca_wdbc)
+library(factoextra)
+fviz_eig(pca_wdbc, addlabels = TRUE, ylim = c(0,100), barfill = "steelblue1", line="navy") + 
+  theme_classic() +
+  labs(x = "Principal Components", y = "% of Explained Variance", title = "WDBC - Principal Components")
+
+# We see that 53.1% of the variance is explained by the first principal component.
+```
+Model Creation:
+
+Models will be created using 5-fold cross-validation, given the relatively small sample size of the dataset. Setting parameters below:
+  
+Setting up 5-fold cross-validation:
+
+```{r}
+ctrl <- trainControl(method = "cv",
+                     number = 5)
+```
+
+Function for plotting confusion matrices
+```{r}
+cm_plot <- function(ml, title) {
+  confusionMatrix(ml)$table %>%
+    round(1) %>%
+    fourfoldplot(
+      color = c("#CC6666", "#99CC99"),
+      main=title, 
+      conf.level=0, 
+      margin=1
+    )
+}
+```
+
+Logistic Regression:
+```{r}
+
+logit.ml <- train(pc_wdbc_c~., full_wdbc, method = "glm", family = "binomial", trControl =ctrl)
+logit.cm <- confusionMatrix(logit.ml)
+cm_plot(logit.ml, "Logistic Regression")
+logit.metrics <- data.frame (
+  "Model" = "Logistic Regression",
+  "Accuracy" = (logit.cm$table[1,1] + logit.cm$table[2,2])/100,
+  "Recall" = logit.cm$table[2,2] / (logit.cm$table[2,2] + logit.cm$table[1,2]),
+  "Precision" = logit.cm$table[2,2] / (logit.cm$table[2,1] + logit.cm$table[2,2]),
+  "FNR" = (logit.cm$table[1,2] / (logit.cm$table[2,2] + logit.cm$table[1,2])),
+  "Fscore" = (2 * logit.cm$table[2,2]) / (2 * logit.cm$table[2,2] + logit.cm$table[1,2] + logit.cm$table[2,1])
+)
+logit.metrics
+```
+
+
+
+
