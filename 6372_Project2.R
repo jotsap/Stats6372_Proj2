@@ -102,6 +102,7 @@ ggplot(data = pc.bc.scores, aes(x = PC2, y = PC3)) +
   ggtitle("PCA of Breast Cancer Tumor Biopsies")
 
 summary(pc.bc)
+library(factoextra)
 fviz_eig(pc.bc, addlabels = TRUE, ylim = c(0,100), barfill = "steelblue1", line="navy") + 
   theme_classic() +
   labs(x = "Principal Components", y = "% of Explained Variance", title = "WDBC - Principal Components")
@@ -155,3 +156,54 @@ logit.metrics <- data.frame (
   "Fscore" = (2 * logit.cm$table[2,2]) / (2 * logit.cm$table[2,2] + logit.cm$table[1,2] + logit.cm$table[2,1])
 )
 logit.metrics
+
+### k-Nearest Neighbours
+
+knn.ml <- train(pc_wdbc_c~., full_wdbc, method = "knn", trControl =ctrl)
+knn.cm <- confusionMatrix(knn.ml)
+cm_plot(knn.ml, "kNN")
+knn.metrics <- data.frame (
+  "Model" = "k-NN",
+  "Accuracy" = (knn.cm$table[1,1] + knn.cm$table[2,2])/100,
+  "Recall" = knn.cm$table[2,2] / (knn.cm$table[2,2] + knn.cm$table[1,2]),
+  "Precision" = knn.cm$table[2,2] / (knn.cm$table[2,1] + knn.cm$table[2,2]),
+  "FNR" = (knn.cm$table[1,2] / (knn.cm$table[2,2] + knn.cm$table[1,2])),
+  "Fscore" = (2 * knn.cm$table[2,2]) / (2 * knn.cm$table[2,2] + knn.cm$table[1,2] + knn.cm$table[2,1])
+)
+knn.metrics
+
+### Bagging - Random Forest
+
+rf.ml <- train(pc_wdbc_c~., full_wdbc, method = "rf", trControl =ctrl)
+rf.cm <- confusionMatrix(rf.ml)
+cm_plot(rf.ml, "Random Forest")
+rf.metrics <- data.frame (
+  "Model" = "Random Forest",
+  "Accuracy" = (rf.cm$table[1,1] + rf.cm$table[2,2])/100,
+  "Recall" = rf.cm$table[2,2] / (rf.cm$table[2,2] + rf.cm$table[1,2]),
+  "Precision" = rf.cm$table[2,2] / (rf.cm$table[2,1] + rf.cm$table[2,2]),
+  "FNR" = (rf.cm$table[1,2] / (rf.cm$table[2,2] + rf.cm$table[1,2])),
+  "Fscore" = (2 * rf.cm$table[2,2]) / (2 * rf.cm$table[2,2] + rf.cm$table[1,2] + rf.cm$table[2,1])
+)
+rf.metrics
+
+## Model Performance
+
+metrics1 <- rbind(knn.metrics,logit.metrics, rf.metrics)
+metrics1 # Taking a look at everything together
+
+
+
+ggplot(metrics1, aes(Model, Accuracy)) + geom_bar(stat="identity", aes(fill=Model)) + coord_cartesian(ylim=c(0.9,1)) + ggtitle("Accuracy")
+ggplot(metrics1, aes(Model, Recall)) + geom_bar(stat="identity", aes(fill=Model)) + coord_cartesian(ylim=c(0.9,1)) + ggtitle("Recall")
+ggplot(metrics1, aes(Model, Precision)) + geom_bar(stat="identity", aes(fill=Model)) + coord_cartesian(ylim=c(0.8,1)) + ggtitle("Precision")
+ggplot(metrics1, aes(Model, FNR)) + geom_bar(stat="identity", aes(fill=Model)) + coord_cartesian(ylim=c(0,0.05)) + ggtitle("False Negative Rate")
+ggplot(metrics1, aes(Model, Fscore)) + geom_bar(stat="identity", aes(fill=Model)) + coord_cartesian(ylim=c(0.9,1)) + ggtitle("F score")
+
+#Taking a look at all confusion matrices:
+  
+par(mfrow=c(3,3))
+cm_plot(knn.ml, "k-NN")
+cm_plot(logit.ml, "Logistic Regression")
+cm_plot(rf.ml, "Random Forest")
+
