@@ -85,29 +85,22 @@ pairs(bc[,3:6],col=bc$diagnosis)
 ```{r}
 # ADDING BOX PLOT VISUALS
 
-#Box Plot: Perimeter Mean
-# boxplot(perimeter_mean ~ diagnosis,data=wdbc,
-# horizontal=TRUE,
-# names=c("Benign","Malignant"),
-# col=c("green","red"),
-# xlab="Perimeter Mean",
-# main="Wisconsin Breast Cancer")
-# 
+
 # #Box Plot: Area Mean
-# boxplot(area_mean ~ diagnosis,data=wdbc,
-# horizontal=TRUE,
-# names=c("Benign","Malignant"),
-# col=c("green","red"),
-# xlab="Area Mean",
-# main="Wisconsin Breast Cancer")
-# 
-# #Box Plot: Radius Mean
-# boxplot(radius_mean ~ diagnosis,data=wdbc,
-# horizontal=TRUE,
-# names=c("Benign","Malignant"),
-# col=c("green","red"),
-# xlab="Radius Mean",
-# main="Wisconsin Breast Cancer")
+boxplot(area_mean ~ diagnosis,data=bc.clean,
+horizontal=TRUE,
+names=c("Benign","Malignant"),
+col=c("green","red"),
+xlab="Area Mean",
+main="Wisconsin Breast Cancer")
+ 
+#Box Plot: Radius Mean
+boxplot(radius_mean ~ diagnosis,data=bc.clean,
+horizontal=TRUE,
+names=c("Benign","Malignant"),
+col=c("green","red"),
+xlab="Radius Mean",
+main="Wisconsin Breast Cancer")
 
 ```
 
@@ -204,6 +197,65 @@ cm_plot <- function(ml, title) {
     )
 }
 ```
+#######################
+
+
+### NOTE ADDING A SEPARATE REGRESSION SECTION ###
+Not familiar w/ the code below but it looks like its using the **PCA components**, not the actual parameters. Remember for Objective 1 we need to provide an interpretation.
+
+Second, it does not account for the extremely high VIF scores. We went to Dr Turner's class today so we do need to account for that. Thus I added a separate Logistic Regression section for Objctive 1.
+
+Also I'm getting an warning when I run it "glm.fit: fitted probabilities numerically 0 or 1 occurred "
+
+NOTE: I also created a "bc.boolean" that replaced the M and B values with 1 and 0 respectively in order for glm() to work
+#bc.boolean <- read.csv("c:/temp/data/project2_wdbc.csv", header = T)
+#bc.boolean[,2:32] -> bc.boolean
+
+LOGISTIC GLM: MAIN MODEL
+
+Notice the VIF scores are incredibly high since radius, perimeter, and area are all a function of each other
+```{r}
+bc.boolean <- read.csv("c:/temp/data/project2_wdbc.csv", header = T)
+bc.boolean[,2:32] -> bc.boolean
+
+main.glm <- glm(diag_bool ~ . , data=bc.boolean, family = binomial(link = "logit") , control = list(maxit = 50))
+summary(main.glm)
+
+# VIF for covariance between Radius, Perimeter, Area
+vif(main.glm) -> main.glm.vif
+main.glm.vif
+
+```
+
+
+LOGISTIC GLM: REDUCED MODEL
+
+```{r}
+# REDUCED model removing all "SE"" measurements, all "Worst"", and only using "Area" in place of 'perimeter' and 'radius'
+redux.glm <- glm(diag_bool ~ texture_mean + area_mean + smoothness_mean + compactness_mean + concavity_mean + concave_points_mean + symmetry_mean + fractal_dimension_mean , data=bc.boolean, family = binomial(link = "logit") , control = list(maxit = 60))
+summary(redux.glm)
+
+# VIF for covariance between Radius, Perimeter, Area
+vif(redux.glm) -> redux.glm.vif
+redux.glm.vif
+
+#95% CONFIDENCE INTERVALS 
+confint(redux.glm, level = 0.95)
+
+```
+
+PLOTTING LOGISTIC REGRESSION REDUX MODEL
+```{r}
+
+library(popbio)
+logi.hist.plot(bc.boolean$radius_mean, bc.boolean$diag_bool, boxp = F, type = "hist")
+
+```
+
+
+
+
+####################################
 
 Logistic Regression:
 ```{r}
