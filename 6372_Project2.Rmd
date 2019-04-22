@@ -77,11 +77,33 @@ ggplot(data = m_and_b) +
                   label = paste(percentage,"%")), 
     size = 3) +
   coord_polar("y")
-
-#Scatter plots color coded by response for just the first few variables
-pairs(bc[,3:6],col=bc$diagnosis)
 ```
 
+SCATTERPLOTS SHOWING CORRELATION
+```{r}
+#Scatter plots color coded by response for just the first few variables
+
+
+#size based correlation
+pairs(bc[,c(3,5,6,8)],col=bc$diagnosis)
+
+
+#Radius, Perimeter, Area - Mean vs Worst
+pairs(bc[,c(3, 5, 6, 23, 25, 26)],col=bc$diagnosis)
+
+#worst vs mean
+pairs( bc[,c(6, 26)], col=bc$diagnosis) 
+pairs( bc[,c(4, 24)], col=bc$diagnosis) 
+pairs( bc[,c(7, 27)], col=bc$diagnosis) 
+ 
+# concave & concave points
+pairs( bc[,c(9, 10, 29, 30)], col=bc$diagnosis) 
+
+```
+
+
+
+ADDING BOX PLOTS
 ```{r}
 # ADDING BOX PLOT VISUALS
 
@@ -213,36 +235,82 @@ NOTE: I also created a "bc.boolean" that replaced the M and B values with 1 and 
 
 LOGISTIC GLM: MAIN MODEL
 
-Notice the VIF scores are incredibly high since radius, perimeter, and area are all a function of each other
 ```{r}
-bc.boolean <- read.csv("c:/temp/data/project2_wdbc.csv", header = T)
-bc.boolean[,2:32] -> bc.boolean
 
-main.glm <- glm(diag_bool ~ . , data=bc.boolean, family = binomial(link = "logit") , control = list(maxit = 50))
+main.glm <- glm(diag_bool ~ . , data=bc.boolean, family = binomial(link = "logit"))
 summary(main.glm)
 
+```
+
+
+Notice the VIF scores are incredibly high since radius, perimeter, and area are all a function of each other
+```{r}
 # VIF for covariance between Radius, Perimeter, Area
+library(car)
 vif(main.glm) -> main.glm.vif
 main.glm.vif
+
+```
+
+LOGISTIC GLM: NORMALIZED DATA
+Note the same issue persists even after data has been normalized
+
+```{r}
+
+main.norm.glm <- glm(diagnosis ~ . , data=bc.clean.normalized, family = binomial(link = "logit") , control = list(maxit = 50))
+summary(main.glm)
+
+```
+
+VIF scores remain uneffected by parameter Normalization
+```{r}
+
+# VIF for covariance between Radius, Perimeter, Area
+vif(main.norm.glm) 
 
 ```
 
 
 LOGISTIC GLM: REDUCED MODEL
 
+Looking at the scatterplots above in the EDA section we can simplify the model based on the correlation we see
+
 ```{r}
-# REDUCED model removing all "SE"" measurements, all "Worst"", and only using "Area" in place of 'perimeter' and 'radius'
-redux.glm <- glm(diag_bool ~ texture_mean + area_mean + smoothness_mean + compactness_mean + concavity_mean + concave_points_mean + symmetry_mean + fractal_dimension_mean , data=bc.boolean, family = binomial(link = "logit") , control = list(maxit = 60))
+# REDUCED model: 
+# only using "Area" in place of 'perimeter' and 'radius'
+# removing all "SE"" measurements, all "Worst""
+
+redux.glm <- glm(diag_bool ~ texture_mean + area_mean + smoothness_mean + compactness_mean + concavity_mean + concave_points_mean + symmetry_mean + fractal_dimension_mean , data=bc.boolean, family = binomial(link = "logit") )
 summary(redux.glm)
 
+```
+
+```{r}
 # VIF for covariance between Radius, Perimeter, Area
 vif(redux.glm) -> redux.glm.vif
 redux.glm.vif
+```
 
+NOTE: R will display a warning message about GLM since all response probabilities are 0 or 1
+```{r}
 #95% CONFIDENCE INTERVALS 
 confint(redux.glm, level = 0.95)
 
 ```
+
+ROC CURVE FOR LOGISTIC REGRESSION
+```{r}
+#ROC CURVE TO ASSESS
+
+library(ROCR)
+bc_lasso_pred <- predict(redux.glm, newx = bc.clean, type = "response")
+bc.lasso.pred <- prediction(bc_lasso_pred, bc.clean$diagnosis)
+bc.lasso.perf <- performance(bc.lasso.pred, measure = "prec", x.measure = "rec")
+
+plot(bc.lasso.perf)
+```
+
+
 
 PLOTTING LOGISTIC REGRESSION REDUX MODEL
 ```{r}
@@ -255,9 +323,65 @@ logi.hist.plot(bc.boolean$radius_mean, bc.boolean$diag_bool, boxp = F, type = "h
 
 
 
+LOGISTIC GLM: REDUCED + INTERACTIONS
+For Objective 2 we will try interactions on the reduced model and see how this effects the AIC score as well as the VIF values
+
+```{r}
+
+# Adding Interactions to REDUCED model
+redux_inter.glm <- glm(diagnosis ~ texture_mean * area_mean * smoothness_mean * compactness_mean * concavity_mean * concave_points_mean * symmetry_mean * fractal_dimension_mean , data=bc.clean, family = binomial(link = "logit") , control = list(maxit = 50))
+
+#Note: you can use this command below to see JUST THE AIC SCORE since output is quite large
+redux_inter.glm$aic
+
+#output the coefficients 
+summary(redux_inter.glm)$coefficients
+
+```
+
+AIC STEPWISE FEATURE SELECTION
+Note guys I really REALLY struggled w/ this. The final output is more like the PCA. 
+Has an AIC of 50 but looking at the model it produces and the coefficients, it really looks like its overfitting
+
+
+```{r}
+#MAIN MODEL STEP SELECTION
+library(MASS)
+main.glm.step <- stepAIC( main.glm, trace = 1, family = binomial(link = "logit"), direction = "both", test="Chisq") 
+
+#Model results
+summary(main.glm.step)
+
+# I'm not sure how useful these plots are or how to even interpret them
+plot(main.glm.step)
+```
+
+
+LASSO GLMNET
+```{r}
+library(glmnet)
+
+#NOTE: GLMNET requires dataframe to be converted to matrix
+bc_lasso_mat <- model.matrix(diagnosis ~ ., bc.clean)[,-1]
+bc.lasso.glm <- glmnet(bc_lasso_mat, bc.clean$diagnosis, family = "binomial" )
+bc.lasso.cv <- cv.glmnet(bc_lasso_mat, bc.clean$diagnosis, family = "binomial")
+
+bc_lambda_lasso <- bc.lasso.cv$lambda.min
+bc_lambda_lasso
+```
+
+Output the final coefficients from GLMNET LASSO
+```{r}
+predict(bc.lasso.cv, type = "coefficients", s = bc_lambda_lasso )
+```
+
+
+
+
+
 ####################################
 
-Logistic Regression:
+Logistic Regression for Objective 2 - Using PC's instead of original parameters
 ```{r}
 
 logit.ml <- train(pc_wdbc_c~., full_wdbc, method = "glm", family = "binomial", trControl =ctrl)
